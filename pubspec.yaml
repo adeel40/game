@@ -1,0 +1,25 @@
+name: gem_crush
+description: "Gem Crush - an addictive Match-3 puzzle game with polished graphics and animations."
+publish_to: 'none'
+version: 1.0.0+1
+
+# Requires Flutter 3.27+ (Dart 3.6+). The UI uses the current Color.withValues()
+# API introduced in Flutter 3.27; on older Flutter versions build with an
+# earlier SDK, replace withValues(alpha: x) with withOpacity(x).
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  shared_preferences: ^2.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

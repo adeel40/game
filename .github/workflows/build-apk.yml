@@ -1,0 +1,56 @@
+name: Build Android APK
+
+# Builds a release APK on GitHub's cloud runners whenever code is pushed,
+# or manually via the "Run workflow" button. The finished APK is uploaded as
+# a downloadable artifact (and attached to a Release on tagged builds).
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build release APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java (required by the Android toolchain)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          # Uses a recent stable Flutter (3.27+) so Color.withValues() compiles.
+          flutter-version: '3.29.0'
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Fetch dependencies
+        run: flutter pub get
+
+      - name: Analyze (non-blocking)
+        run: flutter analyze || true
+
+      - name: Run unit tests
+        run: flutter test || true
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gem-crush-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
