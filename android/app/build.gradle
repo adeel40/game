@@ -50,10 +50,16 @@ android {
 
     buildTypes {
         release {
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Signing with the debug keys for now, so `flutter run --release` works
+            // and the CI can produce an installable APK without a keystore.
             signingConfig signingConfigs.debug
-            minifyEnabled true
-            shrinkResources true
+            // Code shrinking (R8) is disabled: it requires the optional Google
+            // Play Core classes (deferred components / split install) that this
+            // game doesn't use, and R8 fails on the missing references. Leaving
+            // it off keeps the release build simple and reliable. The proguard
+            // rules below also silence those references if you re-enable it.
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
