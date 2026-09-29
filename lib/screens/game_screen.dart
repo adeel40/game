@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../game/game_controller.dart';
+import '../game/sound_manager.dart';
 import '../models/level.dart';
 import '../theme.dart';
 import '../widgets/board_view.dart';
@@ -46,7 +47,12 @@ class _GameScreenState extends State<GameScreen> {
   Future<void> _showEndDialog() async {
     if (!mounted) return;
     final won = _controller.status == GameStatus.won;
-    if (won) await _controller.saveProgress();
+    if (won) {
+      await _controller.saveProgress();
+      SoundManager.instance.win();
+    } else {
+      SoundManager.instance.lose();
+    }
 
     if (!mounted) return;
     showDialog<void>(
@@ -131,7 +137,19 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ),
           const Spacer(),
-          const SizedBox(width: 48),
+          IconButton(
+            icon: Icon(
+              SoundManager.instance.enabled
+                  ? Icons.volume_up_rounded
+                  : Icons.volume_off_rounded,
+              color: Colors.white,
+            ),
+            tooltip: 'Sound on/off',
+            onPressed: () => setState(
+              () => SoundManager.instance.enabled =
+                  !SoundManager.instance.enabled,
+            ),
+          ),
         ],
       ),
     );

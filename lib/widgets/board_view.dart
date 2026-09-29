@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../game/board.dart';
 import '../game/game_controller.dart';
+import '../game/sound_manager.dart';
 import '../models/gem.dart';
 import 'gem_tile.dart';
 import 'particles.dart';
@@ -30,6 +31,7 @@ class _BoardViewState extends State<BoardView> {
     if (c.busy || c.status != GameStatus.playing) return;
 
     if (_selected == null) {
+      SoundManager.instance.select();
       setState(() => _selected = p);
       return;
     }
@@ -44,6 +46,7 @@ class _BoardViewState extends State<BoardView> {
       setState(() => _selected = null);
     } else {
       // Re-select the newly tapped gem.
+      SoundManager.instance.select();
       setState(() => _selected = p);
     }
   }
@@ -67,6 +70,7 @@ class _BoardViewState extends State<BoardView> {
     final c = widget.controller;
     if (!board.isValidSwap(a, b)) {
       // Show a brief invalid nudge by flashing selection.
+      SoundManager.instance.invalid();
       setState(() => _selected = a);
       await Future<void>.delayed(const Duration(milliseconds: 200));
       if (mounted) setState(() => _selected = null);
@@ -86,6 +90,7 @@ class _BoardViewState extends State<BoardView> {
 
       // 2a) Mark the about-to-clear gems so they fade+shrink, and burst.
       final types = board.matchTypes();
+      SoundManager.instance.match(cascade);
       setState(() {
         _clearing
           ..clear()
@@ -111,39 +116,47 @@ class _BoardViewState extends State<BoardView> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final side = constraints.biggest.shortestSide;
-        final cell = side / board.cols;
+    // Compute a finite, square board size from the available width. Using
+    // MediaQuery (rather than LayoutBuilder inside a Center) guarantees the
+    // constraints are always bounded, so `cell` can never become
+    // Infinity/NaN — which previously caused a blank/crashed screen.
+    final media = MediaQuery.of(context);
+    final maxWidth = media.size.width - 24; // account for the parent padding
+    // Keep the board within the vertical space too, so it never overflows.
+    final maxHeight = media.size.height * 0.62;
+    final boardSide = maxWidth < maxHeight ? maxWidth : maxHeight;
+    final cell = boardSide / board.cols;
+    final boardHeight = cell * board.rows;
 
-        return SizedBox(
-          width: cell * board.cols,
-          height: cell * board.rows,
-          child: Stack(
-            children: [
-              // Board backing panel with subtle inner cells.
-              _buildGrid(cell),
-              // Gems.
-              for (var r = 0; r < board.rows; r++)
-                for (var c = 0; c < board.cols; c++)
-                  _buildGem(Pos(r, c), cell),
-              // Particle bursts.
-              for (final burst in _bursts)
-                Positioned(
-                  left: burst.pos.col * cell,
-                  top: burst.pos.row * cell,
-                  child: ParticleBurst(
-                    color: burst.color,
-                    size: cell,
-                    onDone: () {
-                      if (mounted) setState(() => _bursts.remove(burst));
-                    },
-                  ),
+    return SizedBox(
+      width: cell * board.cols,
+      height: boardHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Board backing panel with subtle inner cells.
+          Positioned.fill(child: _buildGrid(cell)),
+          // Gems (each positioned explicitly).
+          for (var r = 0; r < board.rows; r++)
+            for (var c = 0; c < board.cols; c++)
+              _buildGem(Pos(r, c), cell),
+          // Particle bursts.
+          for (final burst in _bursts)
+            Positioned(
+              left: burst.pos.col * cell,
+              top: burst.pos.row * cell,
+              child: IgnorePointer(
+                child: ParticleBurst(
+                  color: burst.color,
+                  size: cell,
+                  onDone: () {
+                    if (mounted) setState(() => _bursts.remove(burst));
+                  },
                 ),
-            ],
-          ),
-        );
-      },
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -157,7 +170,8 @@ class _BoardViewState extends State<BoardView> {
   Widget _buildGem(Pos p, double cell) {
     // Skip cells that are momentarily empty (cleared, awaiting collapse).
     if (board.isEmpty(p.row, p.col)) {
-      return const SizedBox.shrink();
+      return const Positioned(width: 0, height: 0, left: 0, top: 0,
+          child: SizedBox.shrink());
     }
     final gem = board.grid[p.row][p.col];
     final selected = _selected == p;
