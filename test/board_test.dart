@@ -14,6 +14,24 @@ void main() {
             reason: 'seed $seed should have no starting match');
       }
     });
+
+    test('every real level config constructs without throwing', () {
+      // Guards against the LateInitializationError that blanked the screen:
+      // constructing a Board must never read `grid` before it is assigned.
+      for (var n = 1; n <= Levels.total; n++) {
+        final level = Levels.get(n);
+        expect(
+          () => Board(
+            rows: level.rows,
+            cols: level.cols,
+            gemTypeCount: level.gemTypes,
+          ),
+          returnsNormally,
+          reason: 'level $n (${level.rows}x${level.cols}, '
+              '${level.gemTypes} types) must construct cleanly',
+        );
+      }
+    });
   });
 
   group('Swaps', () {

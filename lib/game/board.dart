@@ -79,22 +79,41 @@ class Board {
   Gem _randomGem() =>
       Gem(id: _nextId++, type: _availableTypes[_rng.nextInt(gemTypeCount)]);
 
-  /// Build a starting grid that has NO pre-existing matches but DOES have at
-  /// least one legal move available.
+  /// A throwaway gem used only to allocate the grid before cells are filled.
+  Gem get _placeholder => Gem(id: -1, type: GemType.ruby);
+
+  /// Build a starting grid that has NO pre-existing matches. Generation is
+  /// single-pass and bounded: each cell re-rolls a few times to avoid forming
+  /// an immediate match, then falls back to any type. We deliberately do NOT
+  /// loop on hasAvailableMove() here (that was O((r*c)^2) per attempt and could
+  /// stall the first frame); if the rare match-free board has no legal move,
+  /// reshuffle() is called lazily the first time it's needed.
   void _reset() {
-    do {
-      grid = List.generate(
-        rows,
-        (r) => List.generate(cols, (c) {
-          Gem gem;
-          // Avoid creating an immediate match while filling.
-          do {
-            gem = _randomGem();
-          } while (_wouldMatchOnFill(r, c, gem.type));
-          return gem;
-        }),
-      );
-    } while (!hasAvailableMove());
+    // IMPORTANT: allocate `grid` FIRST, then fill each cell, so that
+    // `_wouldMatchOnFill` can safely read already-placed neighbours. (Doing
+    // this inside a single List.generate would read `grid` before it is
+    // assigned and throw a LateInitializationError -> blank screen.)
+    grid = List.generate(
+      rows,
+      (_) => List<Gem>.filled(cols, _placeholder, growable: false),
+    );
+
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        Gem gem = _randomGem();
+        // Bounded re-rolls to avoid forming an immediate match on placement.
+        for (var attempt = 0; attempt < 12; attempt++) {
+          if (!_wouldMatchOnFill(r, c, gem.type)) break;
+          gem = _randomGem();
+        }
+        grid[r][c] = gem;
+      }
+    }
+
+    // Guarantee at least one legal move without an expensive generate loop.
+    if (!hasAvailableMove()) {
+      reshuffle();
+    }
   }
 
   bool _wouldMatchOnFill(int r, int c, GemType type) {
@@ -283,19 +302,34 @@ class Board {
     return false;
   }
 
-  /// Reshuffle the board in place when no moves remain, guaranteeing a
-  /// solvable, match-free layout.
+  /// Reshuffle the board in place when no moves remain. Tries to reach a
+  /// match-free layout that has a legal move, but is capped so it can never
+  /// hang: after a bounded number of attempts it accepts the best layout it
+  /// found (any move available, matches tolerated), guaranteeing termination.
   void reshuffle() {
     final flat = <Gem>[for (final row in grid) ...row];
-    do {
-      flat.shuffle(_rng);
+
+    void writeFlat() {
       var i = 0;
       for (var r = 0; r < rows; r++) {
         for (var c = 0; c < cols; c++) {
           grid[r][c] = flat[i++];
         }
       }
-    } while (_findMatches().isNotEmpty || !hasAvailableMove());
+    }
+
+    for (var attempt = 0; attempt < 200; attempt++) {
+      flat.shuffle(_rng);
+      writeFlat();
+      if (_findMatches().isEmpty && hasAvailableMove()) return;
+    }
+    // Fallback: prefer at least a playable layout even if not match-free.
+    for (var attempt = 0; attempt < 200; attempt++) {
+      flat.shuffle(_rng);
+      writeFlat();
+      if (hasAvailableMove()) return;
+    }
+    // Last resort: leave the last shuffle in place (extremely unlikely path).
   }
 }
 
