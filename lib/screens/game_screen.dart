@@ -20,6 +20,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   late GameController _controller;
   bool _endShown = false;
+  final GlobalKey<BoardViewState> _boardKey = GlobalKey<BoardViewState>();
 
   @override
   void initState() {
@@ -106,14 +107,64 @@ class _GameScreenState extends State<GameScreen> {
                 child: Center(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: BoardView(controller: c),
+                    child: BoardView(key: _boardKey, controller: c),
                   ),
                 ),
               ),
+              _buildHintBar(),
               const SizedBox(height: 16),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildHintBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: Text(
+              'Swap two touching gems to line up 3+ of a kind',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: () => _boardKey.currentState?.showHint(),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: AppTheme.accentButton,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.lightbulb_rounded,
+                      color: Colors.black87, size: 18),
+                  SizedBox(width: 6),
+                  Text(
+                    'HINT',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

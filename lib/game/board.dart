@@ -288,18 +288,23 @@ class Board {
   }
 
   /// Does any single adjacent swap produce a match? Used to detect deadlocks.
-  bool hasAvailableMove() {
+  bool hasAvailableMove() => findHint() != null;
+
+  /// Find one legal move (a pair of adjacent positions whose swap makes a
+  /// match), or null if the board is deadlocked. Returned as [a, b] so the UI
+  /// can highlight a hint.
+  List<Pos>? findHint() {
     for (var r = 0; r < rows; r++) {
       for (var c = 0; c < cols; c++) {
         // Try swapping right and down only (covers all adjacent pairs once).
         for (final d in const [Pos(0, 1), Pos(1, 0)]) {
           final b = Pos(r + d.row, c + d.col);
           if (!inBounds(b)) continue;
-          if (isValidSwap(Pos(r, c), b)) return true;
+          if (isValidSwap(Pos(r, c), b)) return [Pos(r, c), b];
         }
       }
     }
-    return false;
+    return null;
   }
 
   /// Reshuffle the board in place when no moves remain. Tries to reach a

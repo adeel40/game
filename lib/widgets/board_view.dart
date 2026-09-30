@@ -16,15 +16,32 @@ class BoardView extends StatefulWidget {
   final GameController controller;
 
   @override
-  State<BoardView> createState() => _BoardViewState();
+  State<BoardView> createState() => BoardViewState();
 }
 
-class _BoardViewState extends State<BoardView> {
+/// Public so the game screen can drive [showHint] via a GlobalKey.
+class BoardViewState extends State<BoardView> {
   Pos? _selected;
   final Set<Pos> _clearing = {};
+  final Set<Pos> _hint = {};
   final List<_Burst> _bursts = [];
 
   Board get board => widget.controller.board;
+
+  /// Highlight one legal move for a few seconds so the player can see what to
+  /// do. Called from the game screen's Hint button.
+  void showHint() {
+    final hint = board.findHint();
+    if (hint == null) return;
+    setState(() {
+      _hint
+        ..clear()
+        ..addAll(hint);
+    });
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _hint.clear());
+    });
+  }
 
   Future<void> _onTapCell(Pos p) async {
     final c = widget.controller;
@@ -176,6 +193,7 @@ class _BoardViewState extends State<BoardView> {
     final gem = board.grid[p.row][p.col];
     final selected = _selected == p;
     final clearing = _clearing.contains(p);
+    final hinted = _hint.contains(p);
 
     return AnimatedPositioned(
       key: ValueKey(gem.id),
@@ -198,7 +216,8 @@ class _BoardViewState extends State<BoardView> {
               final v = details.velocity.pixelsPerSecond;
               if (v.distance > 100) _handleSwipe(p, v);
             },
-            child: GemTile(gem: gem, size: cell, selected: selected),
+            child: GemTile(
+                gem: gem, size: cell, selected: selected, hint: hinted),
           ),
         ),
       ),
