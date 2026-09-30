@@ -26,7 +26,21 @@ class BoardViewState extends State<BoardView> {
   final Set<Pos> _hint = {};
   final List<_Burst> _bursts = [];
 
+  // Current cell size and the cell where a drag began, used by the single
+  // board-level gesture handler to map touch coordinates to grid positions.
+  double _cell = 1;
+  Pos? _dragStart;
+
   Board get board => widget.controller.board;
+
+  /// Convert a local touch offset to a grid position (or null if outside).
+  Pos? _posFromOffset(Offset local) {
+    if (_cell <= 0) return null;
+    final c = (local.dx / _cell).floor();
+    final r = (local.dy / _cell).floor();
+    final p = Pos(r, c);
+    return board.inBounds(p) ? p : null;
+  }
 
   /// Highlight one legal move for a few seconds so the player can see what to
   /// do. Called from the game screen's Hint button.
@@ -43,7 +57,9 @@ class BoardViewState extends State<BoardView> {
     });
   }
 
-  Future<void> _onTapCell(Pos p) async {
+  Future<void> _onTapAt(Offset local) async {
+    final p = _posFromOffset(local);
+    if (p == null) return;
     final c = widget.controller;
     if (c.busy || c.status != GameStatus.playing) return;
 
@@ -68,20 +84,30 @@ class BoardViewState extends State<BoardView> {
     }
   }
 
-  Future<void> _handleSwipe(Pos from, Offset delta) async {
+  // ---- Single board-level gesture handling (tap + drag) ----
+
+  void _onPanStart(DragStartDetails d) {
     final c = widget.controller;
     if (c.busy || c.status != GameStatus.playing) return;
-    Pos? target;
-    if (delta.dx.abs() > delta.dy.abs()) {
-      target = Pos(from.row, from.col + (delta.dx > 0 ? 1 : -1));
-    } else {
-      target = Pos(from.row + (delta.dy > 0 ? 1 : -1), from.col);
-    }
-    if (board.inBounds(target)) {
+    _dragStart = _posFromOffset(d.localPosition);
+  }
+
+  Future<void> _onPanUpdate(DragUpdateDetails d) async {
+    final c = widget.controller;
+    if (c.busy || c.status != GameStatus.playing) return;
+    final start = _dragStart;
+    if (start == null) return;
+    final now = _posFromOffset(d.localPosition);
+    if (now == null || now == start) return;
+    // As soon as the finger crosses into an adjacent cell, perform the swap.
+    if (board.areAdjacent(start, now)) {
+      _dragStart = null; // consume this drag so it fires once
       setState(() => _selected = null);
-      await _attemptSwap(from, target);
+      await _attemptSwap(start, now);
     }
   }
+
+  void _onPanEnd(DragEndDetails d) => _dragStart = null;
 
   Future<void> _attemptSwap(Pos a, Pos b) async {
     final c = widget.controller;
@@ -143,36 +169,46 @@ class BoardViewState extends State<BoardView> {
     final maxHeight = media.size.height * 0.62;
     final boardSide = maxWidth < maxHeight ? maxWidth : maxHeight;
     final cell = boardSide / board.cols;
+    _cell = cell; // remember for gesture -> grid mapping
     final boardHeight = cell * board.rows;
 
-    return SizedBox(
-      width: cell * board.cols,
-      height: boardHeight,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Board backing panel with subtle inner cells.
-          Positioned.fill(child: _buildGrid(cell)),
-          // Gems (each positioned explicitly).
-          for (var r = 0; r < board.rows; r++)
-            for (var c = 0; c < board.cols; c++)
-              _buildGem(Pos(r, c), cell),
-          // Particle bursts.
-          for (final burst in _bursts)
-            Positioned(
-              left: burst.pos.col * cell,
-              top: burst.pos.row * cell,
-              child: IgnorePointer(
-                child: ParticleBurst(
-                  color: burst.color,
-                  size: cell,
-                  onDone: () {
-                    if (mounted) setState(() => _bursts.remove(burst));
-                  },
+    // A single gesture layer over the whole board. One detector (rather than
+    // one per gem) makes both tap-to-swap and smooth finger dragging reliable.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapUp: (d) => _onTapAt(d.localPosition),
+      onPanStart: _onPanStart,
+      onPanUpdate: _onPanUpdate,
+      onPanEnd: _onPanEnd,
+      child: SizedBox(
+        width: cell * board.cols,
+        height: boardHeight,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Board backing panel with subtle inner cells.
+            Positioned.fill(child: _buildGrid(cell)),
+            // Gems (each positioned explicitly).
+            for (var r = 0; r < board.rows; r++)
+              for (var c = 0; c < board.cols; c++)
+                _buildGem(Pos(r, c), cell),
+            // Particle bursts.
+            for (final burst in _bursts)
+              Positioned(
+                left: burst.pos.col * cell,
+                top: burst.pos.row * cell,
+                child: IgnorePointer(
+                  child: ParticleBurst(
+                    color: burst.color,
+                    size: cell,
+                    onDone: () {
+                      if (mounted) setState(() => _bursts.remove(burst));
+                    },
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -209,13 +245,9 @@ class BoardViewState extends State<BoardView> {
         child: AnimatedScale(
           duration: const Duration(milliseconds: 220),
           scale: clearing ? 0.3 : 1.0,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _onTapCell(p),
-            onPanEnd: (details) {
-              final v = details.velocity.pixelsPerSecond;
-              if (v.distance > 100) _handleSwipe(p, v);
-            },
+          // No per-gem gesture detector: the board-level GestureDetector maps
+          // touches to cells, so drags that cross gem boundaries still work.
+          child: IgnorePointer(
             child: GemTile(
                 gem: gem, size: cell, selected: selected, hint: hinted),
           ),
