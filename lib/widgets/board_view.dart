@@ -84,30 +84,54 @@ class BoardViewState extends State<BoardView> {
     }
   }
 
-  // ---- Single board-level gesture handling (tap + drag) ----
+  // ---- Raw pointer handling (no gesture arena) ----
+  //
+  // We use a Listener (raw pointer events) instead of GestureDetector so that
+  // tap and drag never compete in the gesture arena. This makes both
+  // tap-to-swap and finger-drag-to-swap fire reliably.
 
-  void _onPanStart(DragStartDetails d) {
+  Offset? _downOffset;
+  bool _dragHandled = false;
+
+  void _onPointerDown(PointerDownEvent e) {
     final c = widget.controller;
     if (c.busy || c.status != GameStatus.playing) return;
-    _dragStart = _posFromOffset(d.localPosition);
+    _downOffset = e.localPosition;
+    _dragStart = _posFromOffset(e.localPosition);
+    _dragHandled = false;
   }
 
-  Future<void> _onPanUpdate(DragUpdateDetails d) async {
+  Future<void> _onPointerMove(PointerMoveEvent e) async {
     final c = widget.controller;
-    if (c.busy || c.status != GameStatus.playing) return;
+    if (_dragHandled || c.busy || c.status != GameStatus.playing) return;
     final start = _dragStart;
     if (start == null) return;
-    final now = _posFromOffset(d.localPosition);
+    final now = _posFromOffset(e.localPosition);
     if (now == null || now == start) return;
-    // As soon as the finger crosses into an adjacent cell, perform the swap.
+    // Finger has crossed into a neighbouring cell -> perform that swap once.
     if (board.areAdjacent(start, now)) {
-      _dragStart = null; // consume this drag so it fires once
+      _dragHandled = true;
       setState(() => _selected = null);
       await _attemptSwap(start, now);
     }
   }
 
-  void _onPanEnd(DragEndDetails d) => _dragStart = null;
+  Future<void> _onPointerUp(PointerUpEvent e) async {
+    final c = widget.controller;
+    if (c.busy || c.status != GameStatus.playing) {
+      _downOffset = null;
+      _dragStart = null;
+      return;
+    }
+    // If the pointer barely moved, treat it as a TAP (tap-to-select / swap).
+    final down = _downOffset;
+    _downOffset = null;
+    _dragStart = null;
+    if (_dragHandled) return; // a drag already did the swap
+    if (down != null && (e.localPosition - down).distance < 16) {
+      await _onTapAt(e.localPosition);
+    }
+  }
 
   Future<void> _attemptSwap(Pos a, Pos b) async {
     final c = widget.controller;
@@ -172,14 +196,14 @@ class BoardViewState extends State<BoardView> {
     _cell = cell; // remember for gesture -> grid mapping
     final boardHeight = cell * board.rows;
 
-    // A single gesture layer over the whole board. One detector (rather than
-    // one per gem) makes both tap-to-swap and smooth finger dragging reliable.
-    return GestureDetector(
+    // A single raw-pointer layer over the whole board. Using Listener (not
+    // GestureDetector) avoids tap/drag competing in the gesture arena, so both
+    // tap-to-swap and finger-drag-to-swap fire reliably.
+    return Listener(
       behavior: HitTestBehavior.opaque,
-      onTapUp: (d) => _onTapAt(d.localPosition),
-      onPanStart: _onPanStart,
-      onPanUpdate: _onPanUpdate,
-      onPanEnd: _onPanEnd,
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerUp,
       child: SizedBox(
         width: cell * board.cols,
         height: boardHeight,
