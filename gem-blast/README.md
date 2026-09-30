@@ -1,65 +1,70 @@
 # 💎 Gem Blast
 
 An addictive **Match-3 puzzle game** built with **Flutter** for Android, featuring
-custom-painted jewel graphics, smooth swap/cascade animations, combos and haptic
-feedback. Think Candy Crush — but hand-crafted with `CustomPainter` (no image
-assets, everything is drawn with gradients and glow).
+custom-painted jewel graphics, smooth swap/cascade animations, **special power-up
+gems**, **objective-based levels**, **sound & music**, and a **persistent high
+score**. Think Candy Crush — but hand-crafted with `CustomPainter` (no image or
+audio assets; every visual is drawn and every sound is synthesised at runtime).
 
 ## ✨ Features
 
 - **Custom jewel graphics** — 6 gem types, each drawn with radial gradients, a
   glossy highlight, specular dot and a soft glow (`GemPainter`).
-- **Juicy animations** — sliding swaps, match pop-out, gravity drops with a
-  lively ease-out, and chain **cascades** that increase your combo multiplier.
-- **Combos & scoring** — every cascade step multiplies your points.
-- **Smart board** — starts with no free matches, reshuffles automatically when
-  no moves remain, and validates swaps before committing.
-- **Haptics** — tactile feedback on selection, swap, match and invalid moves.
-- **Polished UI** — animated floating-gems home screen, portrait-locked, dark
-  jewel theme.
+- **Special power-up gems**
+  - Match **4 in a row/column** → a **line-blast** gem (clears its whole row or column).
+  - Match in an **L / T shape** → a **bomb** (clears a 3×3 area).
+  - Match **5** → a **color-clear** gem (removes every gem of one colour).
+  - Power-ups chain with each other for huge combos.
+- **Objective-based levels** — 10 hand-tuned levels, each with a target score
+  and a limited move budget. Beat one to unlock the next.
+- **Level select + progression** — locked/unlocked level grid, saved between sessions.
+- **Sound & music** — synthesised SFX (select, swap, match, cascade, power-up,
+  level-up, game-over) and a looping background melody. Toggle each in settings.
+- **Persistent high score** — your best run is saved with `shared_preferences`.
+- **Juicy animations** — sliding swaps, match pop-out, gravity drops, cascades
+  with a rising combo multiplier.
+- **Haptics** and a polished dark jewel theme with an animated floating-gems menu.
 
 ## 🎮 How to play
 
 - **Tap** two adjacent gems to swap them, or **swipe** a gem in a direction.
-- Line up **3 or more** of the same gem horizontally or vertically to clear them.
-- Clearing gems drops new ones from the top — chain reactions build **combos**.
-- You have **25 moves**. Chase the highest score!
+- Line up **3+** of the same gem to clear them; **4+** or special shapes create
+  power-up gems — swap a power-up to detonate it.
+- Reach the **target score** before you run out of **moves** to clear the level.
 
 ## 🏗️ Project structure
 
 | File | Responsibility |
 |------|----------------|
-| `lib/main.dart` | App entry, theme, orientation lock |
+| `lib/main.dart` | App entry, storage/audio init, theme, orientation lock |
 | `lib/theme.dart` | Colors, gem palettes, gradients, text styles |
-| `lib/game_board.dart` | Pure Match-3 logic (matches, gravity, refill, reshuffle) |
-| `lib/gem_painter.dart` | Custom painter that draws a single jewel |
-| `lib/game_screen.dart` | Board rendering, gestures, animation pipeline, HUD |
-| `lib/home_screen.dart` | Animated landing screen with floating gems |
+| `lib/game_board.dart` | Match-3 logic + power-up creation/detonation |
+| `lib/gem_painter.dart` | Custom painter for normal & special gems |
+| `lib/game_screen.dart` | Board, gestures, animation pipeline, objectives, HUD |
+| `lib/home_screen.dart` | Menu, level select, settings sheet |
+| `lib/levels.dart` | Level definitions (moves, target score, colours) |
+| `lib/audio_manager.dart` | Runtime WAV synthesis + SFX/music playback |
+| `lib/storage.dart` | Persistent high score, unlocked level, settings |
 | `test/game_board_test.dart` | Unit tests for the core game logic |
 
 ## 🚀 Run & build
 
-Requires the [Flutter SDK](https://docs.flutter.dev/get-started/install) (3.x).
+Requires the [Flutter SDK](https://docs.flutter.dev/get-started/install) (3.x)
+and the Android SDK.
 
 ```bash
-# Fetch dependencies
+cd gem-blast
 flutter pub get
 
-# Run on a connected device / emulator
-flutter run
+flutter run                 # play on a device/emulator
+flutter analyze             # static analysis (clean)
+flutter test                # unit tests (9 passing)
 
-# Analyze & test
-flutter analyze
-flutter test
-
-# Build a release APK (output: build/app/outputs/flutter-apk/app-release.apk)
-flutter build apk --release
-
-# Or an app bundle for the Play Store
-flutter build appbundle --release
+flutter build apk --release # → build/app/outputs/flutter-apk/app-release.apk
+flutter build appbundle     # → Play Store bundle
 ```
 
-Install the APK on a device:
+Install on a device:
 
 ```bash
 flutter install
@@ -69,5 +74,7 @@ adb install build/app/outputs/flutter-apk/app-release.apk
 
 ## 🛠️ Tech
 
-- **Flutter / Dart** — cross-platform, custom-rendered graphics.
-- No external game engine or image assets — all visuals are drawn at runtime.
+- **Flutter / Dart** — custom-rendered graphics, no game engine.
+- `audioplayers` — plays runtime-synthesised WAV sound effects & music.
+- `shared_preferences` — persistent high score, progress and settings.
+- No bundled image or audio assets — everything is generated in code.

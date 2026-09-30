@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'audio_manager.dart';
 import 'home_screen.dart';
+import 'storage.dart';
 import 'theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([
+
+  // Load persistent state and prime the audio engine before showing the UI.
+  await Storage.instance.init();
+  await AudioManager.instance.init();
+  AudioManager.instance.sfxEnabled = Storage.instance.sfxEnabled;
+  AudioManager.instance.musicEnabled = Storage.instance.musicEnabled;
+
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
